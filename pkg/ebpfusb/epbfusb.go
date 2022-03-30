@@ -41,14 +41,13 @@ type UsbEventIntrnl struct {
 }
 
 type UsbEvent struct {
-	UsbEventIntrnl
 	Alen          uint64
 	Buflen        uint64
 	Vendor        uint16
 	Product       uint16
 	Endpoint      uint8
-	TransferFlags uint32
 	BmAttributes  uint8
+	TransferFlags uint32
 	Buf           [4096]byte
 	Direction     string
 	TransferType  string
@@ -62,9 +61,9 @@ struct data_t {
 	u64 buflen;
 	u16 vendor;
 	u16 product;
+	u8 bmAttributes;
 	u8 endpoint;
 	u32 transfer_flags;
-	u8 bmAttributes;
 	u8 buf [4096];
 };
 
@@ -91,6 +90,10 @@ int monitor_usb_hcd_giveback_urb(struct pt_regs *ctx, struct urb *urb) {
 	data->buflen = urb->transfer_buffer_length;
 	data->endpoint = urb->ep->desc.bEndpointAddress;
 	data->bmAttributes = urb->ep->desc.bmAttributes;
+
+	const u8 bmAttr = urb->ep->desc.bmAttributes;
+
+	// bpf_trace_printk("bmAttributes: %%x\n", bmAttr);
 
 	bpf_probe_read_kernel(&data->buf, sizeof(data->buf), urb->transfer_buffer);
 	
@@ -139,11 +142,13 @@ func Start(vendorID, productID *uint16, directionFilter DirectionFilter, handler
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
+	byteOrder := bpf.GetHostByteOrder()
+
 	go func() {
 		var event UsbEventIntrnl
 		for {
 			data := <-channel
-			err := binary.Read(bytes.NewBuffer(data), binary.LittleEndian, &event)
+			err := binary.Read(bytes.NewBuffer(data), byteOrder, &event)
 			if err != nil {
 				fmt.Printf("failed to decode received data: %s\n", err)
 				continue
@@ -156,10 +161,11 @@ func Start(vendorID, productID *uint16, directionFilter DirectionFilter, handler
 				Product:       event.Product,
 				Endpoint:      event.Endpoint,
 				TransferFlags: event.TransferFlags,
-				BmAttributes:  event.BmAttributes,
+				BmAttributes:  event.BmAttributes + 1,
 				Buf:           event.Buf,
 				Direction:     getEndpointType(event.TransferFlags),
-				TransferType:  getTransferType(event.BmAttributes),
+				// I have no idea why in gobpf this is off by one. bpf_trace_printk says its 3 (for INT) but its 2 here.
+				TransferType: getTransferType(event.BmAttributes + 1),
 			}
 
 			handler(evt)
@@ -222,7 +228,7 @@ func getEndpointType(transferFlags uint32) string {
 func getTransferType(bmAttributes uint8) string {
 	masked := USB_ENDPOINT_XFERTYPE_MASK & bmAttributes
 
-	fmt.Printf("attr: %b & mask: %b = %b ? %b\n", bmAttributes, USB_ENDPOINT_XFERTYPE_MASK, masked, USB_ENDPOINT_XFER_BULK)
+	// fmt.Printf("attr: %x %b & mask: %b = %b ? %b\n", bmAttributes, bmAttributes, USB_ENDPOINT_XFERTYPE_MASK, masked, USB_ENDPOINT_XFER_BULK)
 
 	if masked == USB_ENDPOINT_XFER_CONTROL {
 		return "CONTROL"

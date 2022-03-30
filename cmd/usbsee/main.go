@@ -18,11 +18,19 @@ var (
 type Options struct {
 	VendorID        *string `short:"v" long:"vendorid" description:"the vendor-id in hex to filter for"`
 	ProductID       *string `short:"p" long:"productid" description:"the product-id in hex to filter for"`
-	Truncate        *bool   `short:"t" long:"truncate" description:"trim hex packets to their actual length"`
+	Truncate        bool    `short:"t" long:"truncate" description:"trim hex packets to their actual length"`
 	FilterDirection *string `short:"d" long:"direction" description:"filter to input or output only. valid values in or out" choice:"in" choice:"out"`
 }
 
 func main() {
+
+	euid := os.Geteuid()
+
+	if euid != 0 {
+		fmt.Fprintln(os.Stderr, "This Program needs to be run as root.")
+		os.Exit(1)
+	}
+
 	var opts = &Options{}
 
 	parser := flags.NewParser(opts, flags.Default)
@@ -56,7 +64,7 @@ func main() {
 		direction = ebpfusb.Outgoing
 	}
 
-	ebpfusb.Start(vID, pID, direction, printEvent(*opts.Truncate))
+	ebpfusb.Start(vID, pID, direction, printEvent(opts.Truncate))
 }
 
 func hexToUintPtr(src *string) *uint16 {
