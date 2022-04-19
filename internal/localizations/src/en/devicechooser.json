@@ -1,4 +1,12 @@
 {
     "title" : "Choose Device",
-    "label" : "Choose the device to monitor"
+    "label" : "Choose the device to monitor",
+    "vendor-id": "Vendor ID",
+    "product-id": "Product ID",
+    "vendor": "Vendor",
+    "product": "Product",
+    "bus": "Bus",
+    "device": "Device",
+    "bus-id": "Bus.Device",
+    "vendor-id-product-id": "Vendor ID:Product ID"
 }

@@ -7,30 +7,16 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
+	"github.com/asaskevich/EventBus"
 	"github.com/blacktau/usbsee/internal/gui"
 	"github.com/blacktau/usbsee/internal/localizations"
-	"golang.org/x/text/message"
 )
 
 //go:embed logo.png
 var logo []byte
 
-var topWindow fyne.Window
-var printer message.Printer
-
-func makeToolBar() *widget.Toolbar {
-
-	return widget.NewToolbar()
-}
-
-func makeUI() *widget.Toolbar {
-
-	top := makeToolBar()
-
-	return top
-}
+var topWindow *gui.TopWindow
+var deviceChooser *gui.DeviceChooser
 
 func makeLogo() fyne.Resource {
 	return fyne.NewStaticResource("Usbsee Logo", logo)
@@ -39,18 +25,13 @@ func makeLogo() fyne.Resource {
 func main() {
 
 	l := localizations.New("en", "en")
+	bus := EventBus.New()
 
 	a := app.NewWithID("com.blacktau.usbsee")
 
 	a.SetIcon(makeLogo())
 
-	topWindow = a.NewWindow("Usbsee")
-	topWindow.Resize(fyne.NewSize(100.0, 100.0))
-	topWindow.SetMainMenu(gui.MakeMainMenu(&a, l))
-	topWindow.SetMaster()
-
-	gui.MakeDeviceChooser(a, l)
-
-	topWindow.SetContent(container.NewBorder(makeUI(), nil, nil, nil))
+	topWindow = gui.MakeTopWindow(a, l, &bus)
+	deviceChooser = gui.MakeDeviceChooser(a, l, &bus)
 	topWindow.ShowAndRun()
 }
