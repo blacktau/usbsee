@@ -1,0 +1,9 @@
+{
+    "title" : "Usbsee",
+    "open" : "_Open",
+    "open_tooltip": "Open an existing recording",
+    "save": "_Save",
+    "save_tooltip": "Save the current recording",
+    "save_as_tooltip": "Save the current recording as under a new name",
+    "start_msg": "Welcome to UsbSee.\\nClick the new button above to start a recording"
+}

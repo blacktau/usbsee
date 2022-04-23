@@ -1,4 +1,4 @@
-package gui
+package oldgui
 
 import (
 	"fyne.io/fyne/v2"

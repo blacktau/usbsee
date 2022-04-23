@@ -8,15 +8,15 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"github.com/asaskevich/EventBus"
-	"github.com/blacktau/usbsee/internal/gui"
 	"github.com/blacktau/usbsee/internal/localizations"
+	"github.com/blacktau/usbsee/internal/oldgui"
 )
 
 //go:embed logo.png
 var logo []byte
 
-var topWindow *gui.TopWindow
-var deviceChooser *gui.DeviceChooser
+var topWindow *oldgui.TopWindow
+var deviceChooser *oldgui.DeviceChooser
 
 func makeLogo() fyne.Resource {
 	return fyne.NewStaticResource("Usbsee Logo", logo)
@@ -31,7 +31,7 @@ func main() {
 
 	a.SetIcon(makeLogo())
 
-	topWindow = gui.MakeTopWindow(a, l, &bus)
-	deviceChooser = gui.MakeDeviceChooser(a, l, &bus)
+	topWindow = oldgui.MakeTopWindow(a, l, &bus)
+	deviceChooser = oldgui.MakeDeviceChooser(a, l, &bus)
 	topWindow.ShowAndRun()
 }

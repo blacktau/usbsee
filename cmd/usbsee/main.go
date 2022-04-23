@@ -8,7 +8,7 @@ import (
 
 	flags "github.com/jessevdk/go-flags"
 
-	"github.com/blacktau/usbsee/pkg/ebpfusb"
+	"github.com/blacktau/usbsee/ebpfusb"
 )
 
 var (
