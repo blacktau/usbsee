@@ -5,8 +5,11 @@
     "product-id": "Product ID",
     "vendor": "Vendor",
     "product": "Product",
-    "bus": "Bus",
-    "device": "Device",
+    "bus": "Bus {{.busID}}",
+    "device": "Device {{.deviceID}}:",
     "bus-id": "Bus.Device",
-    "vendor-id-product-id": "Vendor ID:Product ID"
+    "vendor-id-product-id": "ID {{.vendorID}}:{{.productID}}",
+    "device-name": "{{.vendorName}} {{.deviceName}}",
+    "cancel": "_Cancel",
+    "select": "_Select"
 }
