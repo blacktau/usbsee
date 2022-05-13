@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/blacktau/usbsee/internal/localizations"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
+
+	"github.com/blacktau/usbsee/internal/localizations"
 )
 
 //go:embed assets/logo.png

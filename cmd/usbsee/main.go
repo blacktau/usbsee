@@ -4,9 +4,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 
-	flags "github.com/jessevdk/go-flags"
+	"github.com/jessevdk/go-flags"
 
 	"github.com/blacktau/usbsee/ebpfusb"
 )
@@ -64,7 +65,41 @@ func main() {
 		direction = ebpfusb.Outgoing
 	}
 
-	ebpfusb.Start(vID, pID, direction, printEvent(opts.Truncate))
+	monitor := ebpfusb.MakeUsbMonitor(vID, pID, direction, printEvent(opts.Truncate))
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, os.Kill)
+
+	vs := "unspecified"
+	if vID != nil {
+		vs = fmt.Sprintf("0x%x", *vID)
+	}
+
+	ps := "unspecified"
+	if pID != nil {
+		ps = fmt.Sprintf("0x%x", *pID)
+	}
+
+	fmt.Fprintf(os.Stdout, "Initialising monitoring on [VID=%s and PID=%s]\n", vs, ps)
+
+	err = monitor.Init()
+	defer monitor.Stop()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initalise usb monitor: %v", err)
+		os.Exit(1)
+	}
+
+	fmt.Fprintf(os.Stdout, "Starting monitoring on [VID=%s and PID=%s]\n", vs, ps)
+
+	err = monitor.Start()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start monitor: %v", err)
+		os.Exit(1)
+	}
+
+	<-sig
 }
 
 func hexToUintPtr(src *string) *uint16 {

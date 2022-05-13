@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"os/signal"
 
 	bpf "github.com/iovisor/gobpf/bcc"
 )
@@ -73,6 +72,7 @@ BPF_PERCPU_ARRAY(data_struct, struct data_t, 1);
 int monitor_usb_hcd_giveback_urb(struct pt_regs *ctx, struct urb *urb) {
 	// Perform a VID/PID check if configured to do so
 	%s
+
 	// Perform endpoint type filtering if configured to do so
 	%s
 
@@ -105,27 +105,42 @@ int monitor_usb_hcd_giveback_urb(struct pt_regs *ctx, struct urb *urb) {
 
 type EventHandler func(UsbEvent)
 
-func Start(vendorID, productID *uint16, directionFilter DirectionFilter, handler EventHandler) {
-	fmt.Printf("Start(%v,%v,%v,%v)\n", vendorID, productID, directionFilter, handler)
-	vndrfltr := calcVendorCheck(vendorID, productID)
-	dirfltr := calcDirectionFilter(directionFilter)
+type UsbMonitor struct {
+	vendorID        *uint16
+	productID       *uint16
+	directionFilter DirectionFilter
+	handler         EventHandler
+	perfMap         *bpf.PerfMap
+	module          *bpf.Module
+}
 
-	code := fmt.Sprintf(tmplt, vndrfltr, dirfltr)
+func MakeUsbMonitor(vendorID, productID *uint16, directionFilter DirectionFilter, handler EventHandler) *UsbMonitor {
+	return &UsbMonitor{
+		vendorID:        vendorID,
+		productID:       productID,
+		directionFilter: directionFilter,
+		handler:         handler,
+	}
+}
+
+func (mon *UsbMonitor) Init() error {
+	//	fmt.Printf("Start(%v,%v,%v,%v)\n", mon.vendorID, mon.productID, mon.directionFilter, mon.handler)
+	vendorFilter := calcVendorCheck(mon.vendorID, mon.productID)
+	directionFilter := calcDirectionFilter(mon.directionFilter)
+
+	code := fmt.Sprintf(tmplt, vendorFilter, directionFilter)
 
 	mod := bpf.NewModule(code, []string{})
-	defer mod.Close()
 
 	probe, err := mod.LoadKprobe("monitor_usb_hcd_giveback_urb")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load kprobe kprobe__usb_hcd_giveback_urb: %s\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to load kprobe kprobe__usb_hcd_giveback_urb: %w\n", err)
 	}
 
 	err = mod.AttachKprobe("__usb_hcd_giveback_urb", probe, -1)
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to attach monitor_usb_hcd_giveback_urb: %s\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to attach monitor_usb_hcd_giveback_urb: %s\n", err)
 	}
 
 	eventTbl := bpf.NewTable(mod.TableId("events"), mod)
@@ -135,12 +150,11 @@ func Start(vendorID, productID *uint16, directionFilter DirectionFilter, handler
 	perfMap, err := bpf.InitPerfMap(eventTbl, channel, nil)
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to init perf map: %s\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to init perf map: %s\n", err)
 	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, os.Kill)
+	mon.perfMap = perfMap
+	mon.module = mod
 
 	byteOrder := bpf.GetHostByteOrder()
 
@@ -150,7 +164,7 @@ func Start(vendorID, productID *uint16, directionFilter DirectionFilter, handler
 			data := <-channel
 			err := binary.Read(bytes.NewBuffer(data), byteOrder, &event)
 			if err != nil {
-				fmt.Printf("failed to decode received data: %s\n", err)
+				fmt.Fprintf(os.Stderr, "failed to decode received data: %s\n", err)
 				continue
 			}
 
@@ -164,28 +178,35 @@ func Start(vendorID, productID *uint16, directionFilter DirectionFilter, handler
 				BmAttributes:  event.BmAttributes + 1,
 				Buf:           event.Buf,
 				Direction:     getEndpointType(event.TransferFlags),
+
 				// I have no idea why in gobpf this is off by one. bpf_trace_printk says its 3 (for INT) but its 2 here.
 				TransferType: getTransferType(event.BmAttributes + 1),
 			}
 
-			handler(evt)
+			mon.handler(evt)
 		}
 	}()
 
-	vs := "unspecified"
-	if vendorID != nil {
-		vs = fmt.Sprintf("0x%x", *vendorID)
+	mon.perfMap.Start()
+	return nil
+}
+
+func (mon *UsbMonitor) Start() error {
+	if mon.perfMap == nil {
+		return fmt.Errorf("failed to start monitoring: perfMap is nil")
 	}
 
-	ps := "unspecified"
-	if productID != nil {
-		ps = fmt.Sprintf("0x%x", *productID)
+	return nil
+}
+
+func (mon *UsbMonitor) Stop() {
+	if mon.perfMap != nil {
+		mon.perfMap.Stop()
 	}
 
-	fmt.Printf("Starting capture [VID=%s and PID=%s]\n", vs, ps)
-	perfMap.Start()
-	<-sig
-	perfMap.Stop()
+	if mon.module != nil {
+		mon.module.Close()
+	}
 }
 
 func calcDirectionFilter(directionFilter DirectionFilter) string {
@@ -207,11 +228,11 @@ func calcVendorCheck(vendorID, productID *uint16) string {
 	}
 
 	if vendorID != nil {
-		return fmt.Sprintf("if (urb->dev->descriptor.idVendor != %d) {{ return 0; }}", *vendorID)
+		return fmt.Sprintf("if (urb->dev->descriptor.idVendor != %d) { return 0; }", *vendorID)
 	}
 
 	if productID != nil {
-		return fmt.Sprintf("if (urb->dev->descriptor.idProduct != %d) {{ return 0; }}", *productID)
+		return fmt.Sprintf("if (urb->dev->descriptor.idProduct != %d) { return 0; }", *productID)
 	}
 
 	return ""
