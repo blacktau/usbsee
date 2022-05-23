@@ -6,27 +6,38 @@ import (
 	"log"
 
 	"github.com/gotk3/gotk3/gdk"
-	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
-
-	"github.com/blacktau/usbsee/internal/localizations"
 )
 
-//go:embed assets/logo.png
-var logo []byte
+var (
+	//go:embed assets/logo.png
+	logo []byte
 
-var logoBuf *gdk.Pixbuf
+	//go:embed assets/main_window.glade
+	mainWindowGlade string
 
-func MakeAppWindow(application *gtk.Application, l *localizations.Localizer) (*gtk.ApplicationWindow, error) {
+	logoBuf *gdk.Pixbuf
+)
 
-	appWindow, err := gtk.ApplicationWindowNew(application)
+func makeAppWindow(application *gtk.Application) (*gtk.ApplicationWindow, error) {
+
+	builder, err := gtk.BuilderNewFromString(mainWindowGlade)
+
 	if err != nil {
-		return nil, fmt.Errorf("Could not spawn root application window: %w", err)
+		return nil, fmt.Errorf("could not load ui defintion: %w", err)
 	}
 
-	appWindow.SetTitle(l.Get("usbsee.title"))
+	winObj, err := builder.GetObject("main-window")
+	if err != nil {
+		return nil, fmt.Errorf("could find main-window in ui definition: %w", err)
+	}
 
-	appWindow.SetDefaultSize(1024, 768)
+	appWindow, err := isApplicationWindow(winObj)
+	if err != nil {
+		return nil, fmt.Errorf("main-window is not an application window?!?: %w", err)
+	}
+
+	application.AddWindow(appWindow)
 
 	logoBuf, err := loadAppIcon()
 	if err != nil {
@@ -34,27 +45,6 @@ func MakeAppWindow(application *gtk.Application, l *localizations.Localizer) (*g
 	}
 
 	appWindow.SetIcon(logoBuf)
-
-	body, err := buildMainBody(l)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create application UI: %w", err)
-	}
-
-	appWindow.Add(body)
-
-	header, err := buildHeaderBar(l)
-
-	if err != nil {
-		return nil, fmt.Errorf("Failed to build header bar: %w", err)
-	}
-
-	appWindow.SetTitlebar(header)
-
-	newAction := glib.SimpleActionNew("new", nil)
-	newAction.Connect("activate", func() {
-		fmt.Println("NEW!!!")
-	})
-	appWindow.AddAction(newAction)
 
 	return appWindow, nil
 }

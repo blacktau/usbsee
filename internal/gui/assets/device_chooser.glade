@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.38.2 -->
+<interface>
+  <requires lib="gtk+" version="3.24"/>
+  <object class="GtkListStore" id="device-list-store">
+    <columns>
+      <!-- column-name Bus -->
+      <column type="gchararray"/>
+      <!-- column-name Device -->
+      <column type="gchararray"/>
+      <!-- column-name VendorID -->
+      <column type="gchararray"/>
+      <!-- column-name ProductID -->
+      <column type="gchararray"/>
+      <!-- column-name Vendor -->
+      <column type="gchararray"/>
+      <!-- column-name Product -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkWindow" id="device-chooser">
+    <property name="can-focus">False</property>
+    <property name="modal">True</property>
+    <property name="window-position">center-on-parent</property>
+    <property name="destroy-with-parent">True</property>
+    <property name="type-hint">dialog</property>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkTreeView" id="device-list-view">
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="model">device-list-store</property>
+            <property name="enable-grid-lines">horizontal</property>
+            <property name="activate-on-single-click">True</property>
+            <signal name="row-activated" handler="device-row-selected" swapped="no"/>
+            <child internal-child="selection">
+              <object class="GtkTreeSelection"/>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="device-list-bus-column">
+                <property name="resizable">True</property>
+                <property name="title" translatable="yes">Bus</property>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">0</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="device-list-device-column">
+                <property name="resizable">True</property>
+                <property name="title" translatable="yes">Device</property>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">1</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="device-list-vendor-id-column">
+                <property name="resizable">True</property>
+                <property name="title" translatable="yes">VendorID</property>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">2</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="device-list-product-id-column">
+                <property name="resizable">True</property>
+                <property name="title" translatable="yes">ProductID</property>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">3</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="device-list-vendor-column">
+                <property name="resizable">True</property>
+                <property name="title" translatable="yes">Vendor</property>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">4</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkTreeViewColumn" id="device-list-product-column">
+                <property name="resizable">True</property>
+                <property name="title" translatable="yes">Product</property>
+                <child>
+                  <object class="GtkCellRendererText"/>
+                  <attributes>
+                    <attribute name="text">5</attribute>
+                  </attributes>
+                </child>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">True</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <child type="titlebar">
+      <object class="GtkHeaderBar" id="device-chooser-header">
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <property name="title" translatable="yes">Usbsee</property>
+        <property name="show-close-button">False</property>
+        <child>
+          <object class="GtkButton" id="device-chooser-cancel-button">
+            <property name="label" translatable="yes">_Cancel</property>
+            <property name="visible">True</property>
+            <property name="sensitive">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">True</property>
+            <property name="use-underline">True</property>
+            <signal name="clicked" handler="cancel-clicked" swapped="no"/>
+          </object>
+        </child>
+        <child>
+          <object class="GtkButton" id="device-chooser-select-button">
+            <property name="label" translatable="yes">_Select</property>
+            <property name="name">device-chooser-select-button</property>
+            <property name="visible">True</property>
+            <property name="sensitive">False</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">True</property>
+            <property name="use-underline">True</property>
+            <signal name="clicked" handler="select-clicked" swapped="no"/>
+            <style>
+              <class name="suggested-action"/>
+            </style>
+          </object>
+          <packing>
+            <property name="pack-type">end</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

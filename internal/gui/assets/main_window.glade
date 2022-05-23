@@ -18,20 +18,12 @@
       <column type="gchararray"/>
     </columns>
   </object>
-  <object class="GtkImage" id="document-new-icon">
-    <property name="visible">True</property>
-    <property name="can-focus">False</property>
-    <property name="icon-name">document-new</property>
-  </object>
-  <object class="GtkImage" id="document-save-as-icon">
-    <property name="visible">True</property>
-    <property name="can-focus">False</property>
-    <property name="icon-name">document-save-as</property>
-  </object>
   <object class="GtkApplicationWindow" id="main-window">
-    <property name="can-focus">False</property>
+    <property name="can-focus">True</property>
     <property name="window-position">center</property>
-    <property name="icon">logo.png</property>
+    <property name="width-request">1024</property>
+    <property name="height-request">764</property>
+    <!--    <property name="icon">logo.png</property>-->
     <child>
       <object class="GtkStack" id="packet-stream-stack">
         <property name="visible">True</property>
@@ -101,6 +93,7 @@
             <property name="visible">True</property>
             <property name="can-focus">False</property>
             <property name="layout-style">expand</property>
+            <property name="homogeneous">False</property>
             <child>
               <object class="GtkButton" id="open-button">
                 <property name="label" translatable="yes">_Open</property>
@@ -113,7 +106,6 @@
                 <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">0</property>
-                <property name="non-homogeneous">True</property>
               </packing>
             </child>
             <child>
@@ -144,8 +136,14 @@
             <property name="receives-default">True</property>
             <property name="tooltip-text" translatable="yes">Start a new recoding session</property>
             <property name="action-name">app.new</property>
-            <property name="image">document-new-icon</property>
             <property name="always-show-image">True</property>
+            <child>
+              <object class="GtkImage" id="new-button-icon">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="icon-name">document-new</property>
+              </object>
+            </child>
           </object>
           <packing>
             <property name="position">1</property>
@@ -156,6 +154,7 @@
             <property name="visible">True</property>
             <property name="can-focus">False</property>
             <property name="layout-style">expand</property>
+            <property name="homogeneous">False</property>
             <child>
               <object class="GtkButton" id="save-button">
                 <property name="label" translatable="yes">Save</property>
@@ -176,7 +175,13 @@
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
-                <property name="image">document-save-as-icon</property>
+                <child>
+                  <object class="GtkImage" id="save-as-button-icon">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="icon-name">document-save-as</property>
+                  </object>
+                </child>
               </object>
               <packing>
                 <property name="expand">True</property>
@@ -243,103 +248,35 @@
       </object>
     </child>
     <child type="titlebar">
-      <object class="GtkHeaderBar" id="main-header">
+      <object class="GtkHeaderBar" id="device-chooser-header">
         <property name="visible">True</property>
         <property name="can-focus">False</property>
         <property name="title" translatable="yes">Usbsee</property>
         <property name="show-close-button">True</property>
         <child>
-          <object class="GtkButtonBox" id="open-button-box">
-            <property name="visible">True</property>
-            <property name="can-focus">False</property>
-            <property name="layout-style">expand</property>
-            <child>
-              <object class="GtkButton" id="open-button">
-                <property name="label" translatable="yes">_Open</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-                <property name="use-underline">True</property>
-              </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
-                <property name="non-homogeneous">True</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkMenuButton" id="recent-button">
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="focus-on-click">False</property>
-                <property name="receives-default">True</property>
-                <property name="use-popover">False</property>
-                <child>
-                  <placeholder/>
-                </child>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
-                <property name="non-homogeneous">True</property>
-              </packing>
-            </child>
-          </object>
-        </child>
-        <child>
-          <object class="GtkButton" id="new-button">
-            <property name="name">new-button</property>
+          <object class="GtkButton" id="device-chooser-cancel-button">
+            <property name="label" translatable="yes">_Cancel</property>
             <property name="visible">True</property>
             <property name="can-focus">True</property>
             <property name="receives-default">True</property>
-            <property name="tooltip-text" translatable="yes">Start a new recoding session</property>
-            <property name="action-name">app.new</property>
-            <property name="image">document-new-icon</property>
-            <property name="always-show-image">True</property>
+            <property name="use-underline">True</property>
           </object>
-          <packing>
-            <property name="position">1</property>
-          </packing>
         </child>
         <child>
-          <object class="GtkButtonBox" id="save-button-box">
+          <object class="GtkButton" id="device-chooser-select-button">
+            <property name="label" translatable="yes">_Select</property>
+            <property name="name">device-chooser-select-button</property>
             <property name="visible">True</property>
-            <property name="can-focus">False</property>
-            <property name="layout-style">expand</property>
-            <child>
-              <object class="GtkButton" id="save-button">
-                <property name="label" translatable="yes">Save</property>
-                <property name="name">save-button</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-              </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkButton" id="save-as-button">
-                <property name="name">save-as-button</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-                <property name="image">document-save-as-icon</property>
-              </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
-              </packing>
-            </child>
+            <property name="can-focus">True</property>
+            <property name="receives-default">True</property>
+            <property name="use-underline">True</property>
+            <style>
+              <class name="suggested-action"/>
+            </style>
           </object>
           <packing>
             <property name="pack-type">end</property>
-            <property name="position">2</property>
+            <property name="position">1</property>
           </packing>
         </child>
       </object>

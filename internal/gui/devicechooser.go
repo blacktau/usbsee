@@ -1,219 +1,135 @@
 package gui
 
 import (
+	_ "embed"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/gotk3/gotk3/gtk"
-	"go.uber.org/zap"
 
-	"github.com/blacktau/usbsee/internal/localizations"
+	"github.com/blacktau/usbsee/internal/logging"
 	"github.com/blacktau/usbsee/internal/usb"
 )
 
 type DeviceSelected func(device *usb.UsbDevice)
 
 type DeviceChooser struct {
-	dialog         *gtk.Dialog
+	dialog         *gtk.Window
 	selectedDevice *usb.UsbDevice
-	logger         *zap.SugaredLogger
+	logger         logging.Logger
 }
 
-func MakeDeviceChooser(l *localizations.Localizer, parent gtk.IWindow, onDeviceSelected DeviceSelected, logger *zap.SugaredLogger) (*DeviceChooser, error) {
+var (
+	//go:embed assets/device_chooser.glade
+	deviceChooserGlade string
+)
 
-	d, err := gtk.DialogNewWithButtons(
-		l.Get("devicechooser.title"),
-		parent,
-		gtk.DIALOG_DESTROY_WITH_PARENT&gtk.DIALOG_MODAL&gtk.DIALOG_USE_HEADER_BAR,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dialog: %w", err)
-	}
+func makeDeviceChooser(parent gtk.IWindow, logger logging.Logger) (*DeviceChooser, error) {
 
 	dc := &DeviceChooser{
-		dialog: d,
 		logger: logger,
 	}
 
-	d.SetStartupID("device-chooser")
-	d.SetPosition(gtk.WIN_POS_CENTER_ON_PARENT)
-
-	headerBar, err := gtk.HeaderBarNew()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create headerBar: %w", err)
-	}
-
-	headerBar.SetTitle(l.Get("devicechooser.title"))
-
-	selectButton, err := makeDialogButton(l, "devicechooser.select", func () {
-		onDeviceSelected(dc.selectedDevice)
-		dc.Hide()
-	})
+	builder, err := gtk.BuilderNewFromString(deviceChooserGlade)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create selectButton: %w", err)
+		return nil, fmt.Errorf("failed to load device-chooser layout")
 	}
 
-	selectButton.SetSensitive(false)
+	signals := map[string]interface{}{
+		"cancel-clicked": func() {
+			dc.onCancelClicked()
+		},
+		"select-clicked": func() {
+			dc.onSelectClicked()
+		},
+		"device-row-selected": func() {
+			bObj, err := builder.GetObject("device-chooser-select-button")
 
-	sc, err := selectButton.GetStyleContext()
+			if err != nil {
+				logger.Errorf("failed to get select button: %v", err)
+				return
+			}
+
+			btn, err := isButton(bObj)
+			if err != nil {
+				logger.Errorf("failed to get select-button not a button: %v", err)
+				return
+			}
+
+			btn.SetSensitive(true)
+
+			dc.onDeviceSelected()
+		},
+	}
+
+	builder.ConnectSignals(signals)
+
+	dObj, err := builder.GetObject("device-chooser")
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to create selectButton: %w", err)
+		return nil, fmt.Errorf("failed to locate device-chooser in layout: %w", err)
 	}
 
-	sc.AddClass("suggested-action")
-
-	headerBar.PackEnd(selectButton)
-
-	cancelButton, err := makeDialogButton(l, "devicechooser.cancel", func() {
-		dc.selectedDevice = nil
-		dc.Hide()
-	})
+	d, err := isWindow(dObj)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("device-chooser not a dialog?!?: %w", err)
 	}
 
-	headerBar.PackStart(cancelButton)
-	headerBar.SetVisible(true)
+	d.SetTransientFor(parent)
 
-	d.SetTitlebar(headerBar)
+	dc.dialog = d
 
 	devices, err := getDevices()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getDevice list: %w", err)
+		return nil, fmt.Errorf("failed getDevice list: %w", err)
 	}
 
-	deviceList, err := dc.makeDeviceListBox(l, &devices)
+	dlsObj, err := builder.GetObject("device-list-store")
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create device list: %w", err)
+		return nil, fmt.Errorf("could not find device-list-store: %w", err)
 	}
 
-	deviceList.Connect("row-selected", func(ref *gtk.ListBox, selectedRow *gtk.ListBoxRow) {
-		fmt.Println(selectedRow.GetName())
-		selectButton.SetSensitive(true)
+	listStore, err := isListStore(dlsObj)
 
-		devId, err := selectedRow.GetName()
+	if err != nil {
+		return nil, fmt.Errorf("device-list-store not a ListStore?!?: %w", err)
+	}
+
+	for _, dev := range devices {
+		iter := listStore.Append()
+		err = listStore.Set(iter, []int{0, 1, 2, 3, 4, 5}, []interface{}{dev.Bus, dev.Device, dev.VendorID, dev.ProductID, dev.VendorName, dev.ProductName})
 		if err != nil {
-			logger.Errorf("failed to get deviceId from selected row: %v", err)
-			return
+			logger.Errorf("could not add device '%s' to list: %v", dev.ID(), err)
 		}
-
-		for _, dev := range devices {
-			if dev.ID() == devId {
-				var devRef = dev
-				dc.selectedDevice = &devRef
-			}
-		}
-	})
-
-	box, err := d.GetContentArea()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create device list: %w", err)
 	}
-
-	box.PackStart(deviceList, true, true, 0)
 
 	return dc, nil
 }
 
-func makeDialogButton(l *localizations.Localizer, labelKey string, f interface{}) (*gtk.Button, error) {
-	button, err := gtk.ButtonNewWithLabel(l.Get(labelKey))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Button '%v': %w", labelKey, err)
-	}
-
-	button.SetVisible(true)
-	button.SetUseUnderline(true)
-	button.Connect("clicked", f)
-	return button, nil
-}
-
-func (dc *DeviceChooser) Show() *usb.UsbDevice {
+func (dc *DeviceChooser) Show() {
 	dc.dialog.ShowNow()
-	return dc.selectedDevice
 }
 
 func (dc *DeviceChooser) Hide() {
 	if dc.dialog != nil {
 		dc.dialog.Hide()
-		dc.dialog.Close()
 	}
 }
 
-func (dc *DeviceChooser) makeDeviceListBox(l *localizations.Localizer, devices *[]usb.UsbDevice) (*gtk.ListBox, error) {
-	lb, err := gtk.ListBoxNew()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create list box: %w", err)
-	}
-
-	for _, dev := range *devices {
-		row, err := dc.makeDeviceListBoxRow(l, dev)
-		if err != nil {
-			return nil, fmt.Errorf("Could not add device '%s' to list box: %w", dev.Device, err)
-		}
-
-		row.SetName(dev.ID())
-		lb.Add(row)
-	}
-
-	lb.SetVisible(true)
-
-	return lb, nil
+func (dc *DeviceChooser) onCancelClicked() {
+	dc.Hide()
 }
 
-func (dc *DeviceChooser) makeDeviceListBoxRow(l *localizations.Localizer, device usb.UsbDevice) (*gtk.ListBoxRow, error) {
-	row, err := gtk.ListBoxRowNew()
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create listboxrow for device %v: %w", device, err)
-	}
-
-	box, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 6)
-	if err != nil {
-		return nil, fmt.Errorf("could not create box for device %v: %w", device, err)
-	}
-
-	box.SetVisible(true)
-	row.Add(box)
-
-	replacements := &localizations.Replacements{
-		"busID":      device.Bus,
-		"deviceID":   device.Device,
-		"vendorID":   device.VendorID,
-		"productID":  device.ProductID,
-		"vendorName": device.VendorName,
-		"deviceName": device.ProductName,
-	}
-
-	_ = addLabel("devicechooser.bus", replacements, l, box)
-	_ = addLabel("devicechooser.device", replacements, l, box)
-	_ = addLabel("devicechooser.vendor-id-product-id", replacements, l, box)
-	_ = addLabel("devicechooser.device-name", replacements, l, box)
-
-	row.SetVisible(true)
-	row.SetName(fmt.Sprintf("%v:%v", device.VendorID, device.ProductID))
-
-	return row, nil
+func (dc *DeviceChooser) onSelectClicked() {
+	dc.logger.Debug("Select Clicked")
 }
 
-func addLabel(key string, replacements *localizations.Replacements, l *localizations.Localizer, box *gtk.Box) error {
-	lbl, err := gtk.LabelNew("<tt>" + l.Get(key, replacements) + "</tt>")
-
-	if err != nil {
-		return fmt.Errorf("could not create label '%s' for device: %w", key, err)
-	}
-
-	lbl.SetVisible(true)
-	lbl.SetUseMarkup(true)
-
-	box.PackStart(lbl, false, true, 6)
-
-	return nil
+func (dc *DeviceChooser) onDeviceSelected() {
+	dc.logger.Debug("Device Selected!")
 }
 
 func getDevices() ([]usb.UsbDevice, error) {

@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"os"
 
 	bpf "github.com/iovisor/gobpf/bcc"
+
+	"github.com/blacktau/usbsee/internal/logging"
 )
 
 type DirectionFilter uint8
@@ -93,6 +94,7 @@ int monitor_usb_hcd_giveback_urb(struct pt_regs *ctx, struct urb *urb) {
 
 	const u8 bmAttr = urb->ep->desc.bmAttributes;
 
+	// uncomment to help with debugging the bpf 
 	// bpf_trace_printk("bmAttributes: %%x\n", bmAttr);
 
 	bpf_probe_read_kernel(&data->buf, sizeof(data->buf), urb->transfer_buffer);
@@ -112,14 +114,16 @@ type UsbMonitor struct {
 	handler         EventHandler
 	perfMap         *bpf.PerfMap
 	module          *bpf.Module
+	logger          logging.Logger
 }
 
-func MakeUsbMonitor(vendorID, productID *uint16, directionFilter DirectionFilter, handler EventHandler) *UsbMonitor {
+func MakeUsbMonitor(vendorID, productID *uint16, directionFilter DirectionFilter, handler EventHandler, logger logging.Logger) *UsbMonitor {
 	return &UsbMonitor{
 		vendorID:        vendorID,
 		productID:       productID,
 		directionFilter: directionFilter,
 		handler:         handler,
+		logger:          logger,
 	}
 }
 
@@ -164,7 +168,7 @@ func (mon *UsbMonitor) Init() error {
 			data := <-channel
 			err := binary.Read(bytes.NewBuffer(data), byteOrder, &event)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to decode received data: %s\n", err)
+				mon.logger.Warnf("failed to decode received data: %s\n", err)
 				continue
 			}
 
