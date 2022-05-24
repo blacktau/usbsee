@@ -15,8 +15,6 @@ var (
 
 	//go:embed assets/main_window.glade
 	mainWindowGlade string
-
-	logoBuf *gdk.Pixbuf
 )
 
 func makeAppWindow(application *gtk.Application) (*gtk.ApplicationWindow, error) {

@@ -7,7 +7,7 @@ import (
 	"github.com/jochenvg/go-udev"
 )
 
-type UsbDevice struct {
+type Device struct {
 	VendorID    string
 	ProductID   string
 	VendorName  string
@@ -16,22 +16,26 @@ type UsbDevice struct {
 	Device      string
 }
 
-func (d UsbDevice) ID() string {
+func (d Device) ID() string {
 	return fmt.Sprintf("%s.%s", d.Bus, d.Device)
 }
 
-func GetDeviceList() ([]UsbDevice, error) {
-	return getDeviceList_Udev()
+func GetDeviceList() ([]Device, error) {
+	return getDeviceListUdev()
 }
 
-func getDeviceList_Udev() ([]UsbDevice, error) {
+func getDeviceListUdev() ([]Device, error) {
 	u := udev.Udev{}
 	en := u.NewEnumerate()
-	en.AddMatchSubsystem("usb")
+	err := en.AddMatchSubsystem("usb")
+
+	if err != nil {
+		return nil, err
+	}
 
 	devs, err := en.Devices()
 
-	result := []UsbDevice{}
+	var result []Device
 
 	for _, d := range devs {
 		d.Properties()
@@ -45,9 +49,8 @@ func getDeviceList_Udev() ([]UsbDevice, error) {
 		v := d.PropertyValue("ID_VENDOR_FROM_DATABASE")
 		pid := d.PropertyValue("ID_MODEL_ID")
 		p := getModel(d)
-		// fmt.Printf("Bus %s Device %s ID: %s:%s %s %s\n", bus, dev, vid, pid, v, p)
 
-		u := UsbDevice{
+		u := Device{
 			VendorID:    vid,
 			ProductID:   pid,
 			VendorName:  v,

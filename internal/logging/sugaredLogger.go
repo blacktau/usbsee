@@ -60,6 +60,14 @@ func (l sugaredLogger) Error(args ...interface{}) {
 	l.logger.Error(args)
 }
 
+func (l sugaredLogger) Infof(template string, args ...interface{}) {
+	l.logger.Infof(template, args)
+}
+
+func (l sugaredLogger) Info(args ...interface{}) {
+	l.logger.Info(args)
+}
+
 func (l sugaredLogger) Panic(args ...interface{}) {
 	l.logger.Panic(args)
 }

@@ -19,51 +19,68 @@ const (
 )
 
 const (
-	USB_ENDPOINT_XFERTYPE_MASK    = 0x03
-	USB_ENDPOINT_XFER_CONTROL     = 0
-	USB_ENDPOINT_XFER_ISOCHRONOUS = 1
-	USB_ENDPOINT_XFER_BULK        = 2
-	USB_ENDPOINT_XFER_INTERRUPT   = 3
-	USB_ENDPOINT_XFER_BULK_STREAM = 4
+	usbEndpointTransferTypeMask        = 0x03
+	usbEndpointControlTransferType     = 0
+	usbEndpointIsochronousTransferType = 1
+	usbEndpointBulkTransferType        = 2
+	// usbEndpointTransferInterrupt       = 3 // not currently being used
+	// usbEndpointTransferBulkStream      = 4 // not currently being used
 
-	IN_MAP = 0x0200
+	inboundEndpointTransferMask = 0x0200
+
+	Inbound  = "IN"
+	Outbound = "OUT"
+
+	TransferTypeControl     = "CONTROL"
+	TransferTypeIsochronous = "ISOC"
+	TransferTypeBulk        = "BULK"
+	TransferTypeInterrupt   = "INT"
+
+	ControlRequestTypeVendor   = "Vendor"
+	ControlRequestTypeClass    = "Class"
+	ControlRequestTypeStandard = "Standard"
+
+	ControlRecipientDevice    = "Device"
+	ControlRecipientInterface = "Interface"
+	ControlRecipientEndpoint  = "Endpoint"
+	ControlRecipientOther     = "Other"
 )
 
-type UsbEventIntrnl struct {
-	Alen          uint64
-	Buflen        uint64
-	Vendor        uint16
-	Product       uint16
-	Endpoint      uint8
-	TransferFlags uint32
-	BmAttributes  uint8
-	Buf           [4096]byte
+var requestCodes = []string{
+	"GET_STATUS",
+	"CLEAR_FEATURE",
+	"Reserved_0",
+	"SET_FEATURE",
+	"Reserved_1",
+	"SET_ADDRESS",
+	"GET_DESCRIPTOR",
+	"SET_DESCRIPTOR",
+	"GET_CONFIGURATION",
+	"SET_CONFIGURATION",
+	"GET_INTERFACE",
+	"SET_INTERFACE",
+	"SYNCH_FRAME",
 }
 
-type UsbEvent struct {
-	Alen          uint64
-	Buflen        uint64
-	Vendor        uint16
-	Product       uint16
-	Endpoint      uint8
-	BmAttributes  uint8
-	TransferFlags uint32
-	Buf           [4096]byte
-	Direction     string
-	TransferType  string
-}
-
-const tmplt string = `
+const ebpfTemplate string = `
 #include <linux/usb.h>
 
 struct data_t {
+	// Control transfer specific data
+	u8 bRequestType;
+	u8 bRequest;
+	u16 wValue;
+	u16 wIndex;
+	u16 wLength;
+
+	// Common data
 	u64 alen;
 	u64 buflen;
 	u16 vendor;
 	u16 product;
-	u8 bmAttributes;
 	u8 endpoint;
 	u32 transfer_flags;
+	u8 bmAttributes;
 	u8 buf [4096];
 };
 
@@ -79,10 +96,22 @@ int monitor_usb_hcd_giveback_urb(struct pt_regs *ctx, struct urb *urb) {
 
 	int zero = 0;
 	struct data_t* data = data_struct.lookup(&zero);
-	if (!data)
+	if (!data) {
 		return 0;
+	}
 
 	struct usb_device *dev = urb->dev;
+
+	// If it's a control transfer, include that data too
+	// Otherwise that data can be any random garbage
+	if ((data->bmAttributes & 0x03) == 0) {
+		struct usb_ctrlrequest* ctrlrequest = (struct usb_ctrlrequest*)urb->setup_packet;
+		data->bRequestType = ctrlrequest->bRequestType;
+		data->bRequest = ctrlrequest->bRequest;
+		data->wValue = ctrlrequest->wValue;
+		data->wIndex = ctrlrequest->wIndex;
+		data->wLength = ctrlrequest->wLength;
+	}
 
 	data->vendor = dev->descriptor.idVendor;
 	data->product = dev->descriptor.idProduct;
@@ -92,9 +121,8 @@ int monitor_usb_hcd_giveback_urb(struct pt_regs *ctx, struct urb *urb) {
 	data->endpoint = urb->ep->desc.bEndpointAddress;
 	data->bmAttributes = urb->ep->desc.bmAttributes;
 
-	const u8 bmAttr = urb->ep->desc.bmAttributes;
-
-	// uncomment to help with debugging the bpf 
+	// uncomment to help with debugging the bpf
+	// const u8 bmAttr = urb->ep->desc.bmAttributes;
 	// bpf_trace_printk("bmAttributes: %%x\n", bmAttr);
 
 	bpf_probe_read_kernel(&data->buf, sizeof(data->buf), urb->transfer_buffer);
@@ -117,6 +145,42 @@ type UsbMonitor struct {
 	logger          logging.Logger
 }
 
+type UsbEventInternal struct {
+	BRequestType  uint8
+	BRequest      uint8
+	WValue        uint16
+	WIndex        uint16
+	WLength       uint16
+	Alen          uint64
+	Buflen        uint64
+	Vendor        uint16
+	Product       uint16
+	Endpoint      uint8
+	TransferFlags uint32
+	BmAttributes  uint8
+	Buf           [4096]byte
+}
+
+type UsbEvent struct {
+	ActualLength            uint64
+	BufferLength            uint64
+	Vendor                  uint16
+	Product                 uint16
+	Endpoint                uint8
+	Attributes              uint8
+	TransferFlags           uint32
+	Buffer                  [4096]byte
+	Direction               string
+	TransferType            string
+	ControlRequestDirection string
+	ControlRequestType      string
+	ControlRecipient        string
+	ControlRequestCode      string
+	IsControlRequest        bool
+	WValue                  uint16
+	WIndex                  uint16
+}
+
 func MakeUsbMonitor(vendorID, productID *uint16, directionFilter DirectionFilter, handler EventHandler, logger logging.Logger) *UsbMonitor {
 	return &UsbMonitor{
 		vendorID:        vendorID,
@@ -132,7 +196,7 @@ func (mon *UsbMonitor) Init() error {
 	vendorFilter := calcVendorCheck(mon.vendorID, mon.productID)
 	directionFilter := calcDirectionFilter(mon.directionFilter)
 
-	code := fmt.Sprintf(tmplt, vendorFilter, directionFilter)
+	code := fmt.Sprintf(ebpfTemplate, vendorFilter, directionFilter)
 
 	mod := bpf.NewModule(code, []string{})
 
@@ -163,7 +227,7 @@ func (mon *UsbMonitor) Init() error {
 	byteOrder := bpf.GetHostByteOrder()
 
 	go func() {
-		var event UsbEventIntrnl
+		var event UsbEventInternal
 		for {
 			data := <-channel
 			err := binary.Read(bytes.NewBuffer(data), byteOrder, &event)
@@ -173,18 +237,28 @@ func (mon *UsbMonitor) Init() error {
 			}
 
 			evt := UsbEvent{
-				Alen:          event.Alen,
-				Buflen:        event.Buflen,
+				ActualLength:  event.Alen,
+				BufferLength:  event.Buflen,
 				Vendor:        event.Vendor,
 				Product:       event.Product,
 				Endpoint:      event.Endpoint,
 				TransferFlags: event.TransferFlags,
-				BmAttributes:  event.BmAttributes + 1,
-				Buf:           event.Buf,
+				Attributes:    event.BmAttributes + 1,
+				Buffer:        event.Buf,
 				Direction:     getEndpointType(event.TransferFlags),
 
 				// I have no idea why in gobpf this is off by one. bpf_trace_printk says its 3 (for INT) but its 2 here.
 				TransferType: getTransferType(event.BmAttributes + 1),
+			}
+
+			if evt.TransferType == TransferTypeControl {
+				evt.IsControlRequest = true
+				evt.ControlRequestDirection = getControlRequestDirection(event.BRequestType)
+				evt.ControlRequestType = getControlRequestType(event.BRequestType)
+				evt.ControlRecipient = getControlRecipient(event.BRequestType)
+				evt.ControlRequestCode = getRequestCode(event.BRequest)
+				evt.WValue = event.WValue
+				evt.WIndex = event.WIndex
 			}
 
 			mon.handler(evt)
@@ -211,6 +285,47 @@ func (mon *UsbMonitor) Stop() {
 	if mon.module != nil {
 		mon.module.Close()
 	}
+}
+
+func getControlRequestDirection(bRequestType uint8) string {
+	if bRequestType&0x80 == 0 {
+		return Inbound
+	}
+
+	return Outbound
+}
+
+func getControlRequestType(bRequestType uint8) string {
+	b := (bRequestType & 0x60) >> 5
+	switch b {
+	case 0:
+		return ControlRequestTypeStandard
+	case 1:
+		return ControlRequestTypeClass
+	default:
+		return ControlRequestTypeVendor
+	}
+}
+
+func getControlRecipient(bRequestType uint8) string {
+	b := bRequestType & 0x0f
+	switch b {
+	case 0:
+		return ControlRecipientDevice
+	case 1:
+		return ControlRecipientInterface
+	case 2:
+		return ControlRecipientEndpoint
+	default:
+		return ControlRecipientOther
+	}
+}
+
+func getRequestCode(bRequest uint8) string {
+	if int(bRequest) > len(requestCodes) {
+		return "Error"
+	}
+	return requestCodes[bRequest]
 }
 
 func calcDirectionFilter(directionFilter DirectionFilter) string {
@@ -243,29 +358,29 @@ func calcVendorCheck(vendorID, productID *uint16) string {
 }
 
 func getEndpointType(transferFlags uint32) string {
-	if transferFlags&IN_MAP == 0 {
-		return "IN"
+	if transferFlags&inboundEndpointTransferMask == 0 {
+		return Inbound
 	}
 
-	return "OUT"
+	return Outbound
 }
 
 func getTransferType(bmAttributes uint8) string {
-	masked := USB_ENDPOINT_XFERTYPE_MASK & bmAttributes
+	masked := usbEndpointTransferTypeMask & bmAttributes
 
-	// fmt.Printf("attr: %x %b & mask: %b = %b ? %b\n", bmAttributes, bmAttributes, USB_ENDPOINT_XFERTYPE_MASK, masked, USB_ENDPOINT_XFER_BULK)
+	// fmt.Printf("attr: %x %b & mask: %b = %b ? %b\n", bmAttributes, bmAttributes, usbEndpointTransferTypeMask, masked, usbEndpointBulkTransferType)
 
-	if masked == USB_ENDPOINT_XFER_CONTROL {
-		return "CONTROL"
+	if masked == usbEndpointControlTransferType {
+		return TransferTypeControl
 	}
 
-	if masked == USB_ENDPOINT_XFER_ISOCHRONOUS {
-		return "ISOC"
+	if masked == usbEndpointIsochronousTransferType {
+		return TransferTypeIsochronous
 	}
 
-	if masked == USB_ENDPOINT_XFER_BULK {
-		return "BULK"
+	if masked == usbEndpointBulkTransferType {
+		return TransferTypeBulk
 	}
 
-	return "INT"
+	return TransferTypeInterrupt
 }

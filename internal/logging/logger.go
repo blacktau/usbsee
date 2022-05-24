@@ -11,4 +11,6 @@ type Logger interface {
 	Errorf(template string, args ...interface{})
 	Error(args ...interface{})
 	Panic(args ...interface{})
+	Infof(template string, args ...interface{})
+	Info(args ...interface{})
 }

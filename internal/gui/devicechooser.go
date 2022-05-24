@@ -12,11 +12,11 @@ import (
 	"github.com/blacktau/usbsee/internal/usb"
 )
 
-type DeviceSelected func(device *usb.UsbDevice)
+type DeviceSelected func(device *usb.Device)
 
 type DeviceChooser struct {
 	dialog         *gtk.Window
-	selectedDevice *usb.UsbDevice
+	selectedDevice *usb.Device
 	logger         logging.Logger
 }
 
@@ -132,7 +132,7 @@ func (dc *DeviceChooser) onDeviceSelected() {
 	dc.logger.Debug("Device Selected!")
 }
 
-func getDevices() ([]usb.UsbDevice, error) {
+func getDevices() ([]usb.Device, error) {
 	devices, err := usb.GetDeviceList()
 
 	if err != nil {

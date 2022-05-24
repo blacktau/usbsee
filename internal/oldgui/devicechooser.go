@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/asaskevich/EventBus"
+
 	"github.com/blacktau/usbsee/internal/localizations"
 	"github.com/blacktau/usbsee/internal/usb"
 )
@@ -69,7 +70,7 @@ func makeLabel() *widget.Label {
 	return l
 }
 
-func makeDeviceList(devices []usb.UsbDevice, l *localizations.Localizer) *widget.List {
+func makeDeviceList(devices []usb.Device, l *localizations.Localizer) *widget.List {
 
 	deviceList := widget.NewList(
 		func() int {
@@ -96,7 +97,7 @@ func makeDeviceList(devices []usb.UsbDevice, l *localizations.Localizer) *widget
 	return deviceList
 }
 
-func getDevices(l *localizations.Localizer) ([]usb.UsbDevice, error) {
+func getDevices(l *localizations.Localizer) ([]usb.Device, error) {
 	devices, err := usb.GetDeviceList()
 
 	if err != nil {
